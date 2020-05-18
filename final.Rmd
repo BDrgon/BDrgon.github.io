@@ -51,6 +51,8 @@ library(class)
 ```{r plots, include=TRUE}
 ggplot(dat, aes(x=rank, y=accuracy)) + geom_point()
 ```
+
+
   As you can see, there is not a visible correlation. This may be because we are only looking at the top 100 players. Based on my experience with the game this plot appears random because the different playstyles present in the top ranks.
 
 ## Pipeline
@@ -64,10 +66,14 @@ dat <- mutate(dat, average_map_length = hours/play_count) %>%
   mutate(log_acc = log(100 - accuracy))
 ggplot(dat, aes(x=rank, y=log_acc)) + geom_point()
 ```
+
+
   log(100-accuracy) gives us a better spread, but plotting this against player rank is still useless. We will try plotting against some of the newly generated columns.
 ```{r plot_maplength, include=TRUE}
 ggplot(dat, aes(x=average_map_length, y=log_acc)) + geom_point()
 ```
+
+
   This plot is interesting. Visibly, more player average shorter maps. While the most accurate player here plays shorter maps, the couple of long map players have above average accuracy. This follows the intuition that the consistency needed to get through longer maps allows these players to achieve a higher overall accuracy. Remember that log_acc = log(100 - accuracy), so points at 0 mean 99% accuracy. 
 
 ##Visualization
@@ -86,55 +92,52 @@ ggplot(dat, aes(x=rank, y=average_map_length)) + geom_point() + geom_smooth(meth
 
 #knn model training on 90% of the set to predict the last 10%
 ```{r knn_level, include=TRUE}
-#randomly sample 90% of rows
-rand <- sample(1:nrow(dat), 0.9*nrow(dat))
-#create a norm function
-norm <- function(x) {(x-min(x))/(max(x)-min(x))}
-norm_dat <- as.data.frame(lapply(dat[, c(8, 10)], norm))
-#extract training set and testing set from normalized data
-dat_train = norm_dat[rand,]
-dat_test = norm_dat[-rand,]
-#get prediction target (level column) and test target
-target_dat <- as.factor(dat[rand,7])
-target_test <- as.factor(dat[-rand,7])
-#run knn function
-predict <- knn(dat_train, dat_test, cl=target_dat, k=10)
-#confusion matrix
-tbl <- table(predict, target_test)
-#accuracy function
-accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
-#call model accuracy function
-accuracy(tbl)
+knn_100 <- function(size){
+  #randomly sample 90% of rows
+  rand <- sample(1:nrow(dat), size*nrow(dat))
+  #create a norm function
+  norm <- function(x) {(x-min(x))/(max(x)-min(x))}
+  norm_dat <- as.data.frame(lapply(dat[, c(8, 10)], norm))
+  #extract training set and testing set from normalized data
+  dat_train = norm_dat[rand,]
+  dat_test = norm_dat[-rand,]
+  #get prediction target (level column) and test target
+  target_dat <- as.factor(dat[rand,7])
+  target_test <- as.factor(dat[-rand,7])
+  #run knn function
+  predict <- knn(dat_train, dat_test, cl=target_dat, k=10)
+  #confusion matrix
+  tbl <- table(predict, target_test)
+  #accuracy function
+  accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+  #call model accuracy function
+  accuracy(tbl)
+}
+knn_100(0.9)
 ```
-##Conclusion
+#Refining the model
 
   The above model gives a different accuracy each time it is run. This means that different subsets of the data are more useful in predicting new data, and the accuracy of the model depends mostly on whether the predicted players include any outliers. We adjust for this by sampling half of the dataset instaed of 90% for training. This way our model is checked against 50 entries instead of just 10 and outliers have less of a negative impact on accuracy
 
-here is the improved model
-knn model training on 50% of the set to predict the other 50%
+We encapsulated the model within a function, so we can run it by calling knn_100(x) where x is the proportion of the set to use as training data. Since we saw variation when running the model multiple times, we want to run the model several times and look for trends
 ```{r knn_level_50, include=TRUE}
-#randomly sample 90% of rows
-rand <- sample(1:nrow(dat), 0.5*nrow(dat))
-#create a norm function
-norm <- function(x) {(x-min(x))/(max(x)-min(x))}
-norm_dat <- as.data.frame(lapply(dat[, c(8, 10)], norm))
-#extract training set and testing set from normalized data
-dat_train = norm_dat[rand,]
-dat_test = norm_dat[-rand,]
-#get prediction target (level column) and test target
-target_dat <- as.factor(dat[rand,7])
-target_test <- as.factor(dat[-rand,7])
-#run knn function
-predict <- knn(dat_train, dat_test, cl=target_dat, k=10)
-#confusion matrix
-tbl <- table(predict, target_test)
-#accuracy function
-accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
-#call model accuracy function
-accuracy(tbl)
+#generate a vector of accuracies when running the knn model with 90% of the set as training data
+accs90 = c()
+for(x in 1:10){
+  accs90 <- c(accs90, knn_100(0.9))
+}
+
+#now generate the same vector but training on 50% of the data
+accs50 = c()
+for(x in 1:10){
+  accs50 = c(accs50, knn_100(0.5))
+}
+
+#display of boxplot of the distributions of accuracy for these two models
+boxplot(accs90, accs50)
 ```
 
-  While this 50% model also varies with each run, the accuracy hovers within 15-20% of 50%. Since the factorized player level has 4 possible values in this set, a truly random predictor would be expected to have an accuracy of 25%. This model consistently outperforms 25%.
+  While this 50% model also varies with each run, the accuracy varies much less.The boxplot above shows that training the model on 90% of the dataset and checking accuracy with 10% outputs an accuracy value with a much higher standard deviation than training on 50% and checking with 50%. This makes intuitive sense because the factorized player level has 4 possible values in this set, a truly random predictor would be expected to have an accuracy of 25%. This model consistently outperforms 25%.
 
 ##Conclusion:
 
