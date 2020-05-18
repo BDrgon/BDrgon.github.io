@@ -234,6 +234,7 @@ ggplot(dat, aes(x=rank, y=log_acc)) + geom_point()</code></pre>
 <div id="machine-learning" class="section level2">
 <h2>Machine learning</h2>
 <p>Can we create a model to predict some player attribute given some other attributes? Let’s treat the player level as a categorical variable and see if it can be predicted using the playtime attributes of play_count or hours. Intuitively, this prediction should be possible because we know that players earn progress towards the next level by playing, so a higher playcount should predict a higher level. Specifically, we will try to predict level using hours and ranked score.</p>
+<p>To do this we will be using a knn(k nearest neighbors) algorithm, which is part of the r class library. We loaded this library above with library(class). For more in depth information on how knn modeling works, check out this link: <a href="http://www.cs.cornell.edu/courses/cs4758/2013sp/materials/cs4758-knn-lectureslides.pdf" class="uri">http://www.cs.cornell.edu/courses/cs4758/2013sp/materials/cs4758-knn-lectureslides.pdf</a></p>
 </div>
 </div>
 <div id="knn-model-training-on-90-of-the-set-to-predict-the-last-10" class="section level1">
@@ -257,7 +258,7 @@ tbl &lt;- table(predict, target_test)
 accuracy &lt;- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
 #call model accuracy function
 accuracy(tbl)</code></pre>
-<pre><code>## [1] 70</code></pre>
+<pre><code>## [1] 50</code></pre>
 <div id="conclusion" class="section level2">
 <h2>Conclusion</h2>
 <p>The above model gives a different accuracy each time it is run. This means that different subsets of the data are more useful in predicting new data, and the accuracy of the model depends mostly on whether the predicted players include any outliers. We adjust for this by sampling half of the dataset instaed of 90% for training. This way our model is checked against 50 entries instead of just 10 and outliers have less of a negative impact on accuracy</p>
@@ -281,7 +282,7 @@ tbl &lt;- table(predict, target_test)
 accuracy &lt;- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
 #call model accuracy function
 accuracy(tbl)</code></pre>
-<pre><code>## [1] 50</code></pre>
+<pre><code>## [1] 54</code></pre>
 <p>While this 50% model also varies with each run, the accuracy hovers within 15-20% of 50%. Since the factorized player level has 4 possible values in this set, a truly random predictor would be expected to have an accuracy of 25%. This model consistently outperforms 25%.</p>
 </div>
 <div id="conclusion-1" class="section level2">

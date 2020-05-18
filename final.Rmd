@@ -81,6 +81,8 @@ ggplot(dat, aes(x=rank, y=average_map_length)) + geom_point() + geom_smooth(meth
 
   Can we create a model to predict some player attribute given some other attributes? Let's treat the player level as a categorical variable and see if it can be predicted using the playtime attributes of play_count or hours. Intuitively, this prediction should be possible because we know that players earn progress towards the next level by playing, so a higher playcount should predict a higher level. Specifically, we will try to predict level using hours and ranked score.
 
+  To do this we will be using a knn(k nearest neighbors) algorithm, which is part of the r class library. We loaded this library above with library(class). For more in depth information on how knn modeling works, check out this link:
+  http://www.cs.cornell.edu/courses/cs4758/2013sp/materials/cs4758-knn-lectureslides.pdf
 
 #knn model training on 90% of the set to predict the last 10%
 ```{r knn_level, include=TRUE}
