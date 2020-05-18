@@ -134,7 +134,7 @@ for(x in 1:10){
 }
 
 #display of boxplot of the distributions of accuracy for these two models
-boxplot(accs90, accs50)
+boxplot(accs90, accs50, names=c("90/10 model", "50/50 model"), ylim = c(0, 100))
 ```
 
   While this 50% model also varies with each run, the accuracy varies much less.The boxplot above shows that training the model on 90% of the dataset and checking accuracy with 10% outputs an accuracy value with a much higher standard deviation than training on 50% and checking with 50%. This makes intuitive sense because the factorized player level has 4 possible values in this set, a truly random predictor would be expected to have an accuracy of 25%. This model consistently outperforms 25%.
