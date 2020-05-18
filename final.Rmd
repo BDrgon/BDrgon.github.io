@@ -1,0 +1,141 @@
+---
+title: "CMSC320 final project"
+author: "Benjamin Drgon"
+date: "5/17/2020"
+output: html_document
+---
+
+##Dataset
+
+  The dataset we will be looking at is a snapshot of the global rankings for the video game "Osu!". Osu! is a rhythm game, similar to guitar hero, in which players compete for score on different maps. A map is an arrangement of circles set to the beat of a song, and played by clicking the circles to the beat.
+this dataset includes global leaderboard data for the top 100 players on March 26, 2017. Here is a breakdown of what some of the columns signifiy:
+
+##play_count, level, hours, total_hits, ranked score
+
+  These columns are all roughly related to the amount of time a player has spent playing the game. 
+
+  Play_count gives the total number of plays that player has subitted to the Osu! servers. This statistic can be innacurate because it doesn't count plays that the player didn't submite because they weren't logged in.
+
+  level give the player's account level, which goes higher as the player plays more. Past level 100, the time needed to achieve the next level goes up exponentially, so few of even the top ranked players have achieved more than 102.
+
+  hours may be the most directly useful playtime stat. It gives the amount of time the player has spent actively clicking circles. By comparing a player's hours and play_count we can calculate the average length of the maps that player plays.
+
+  total_hits is yet another metric that give the total number of individual circles the player has clicked.
+
+  ranked_score gives the total of a player's top scores on UNIQUE maps. This statistic is mostly useful as a measure of how many different maps a player has played.
+
+  Some other useful statistics are in the columns labelled accuracy, watched_by, and the counter attributes ss, s, and a
+
+  The accuracy column gives an overall measure of a player's accuracy. It is calculated in a similar manner to performance_points, with a player's highest rated play having the greatest impact on the value. 
+
+  watched_by gives the number of time another player has watched a replay file of the given player playing. Can be used as a rough measure of a player's notoriety or popularity.
+
+  ss, s, and a give the total number of unique maps on which the given player has achieved ranks of ss, s, or a. SS is the highest possible grade, and signifies perfect accuracy on that map, while S means imperfect timing with no misses. These columns will be relatively useless because they don't account for map difficulty. Any of these players could inflate this number by playing a larger quantity of easier maps.
+
+##Setup.
+
+Start by reading ranking.csv, which contains our data set.
+Also load up useful libraries for later
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+dat = read.csv("ranking.csv")
+library(ggplot2)
+library(dplyr)
+library(class)
+```
+
+##Starting exploration
+
+#Plot accuracy against rank
+
+```{r plots, include=TRUE}
+ggplot(dat, aes(x=rank, y=accuracy)) + geom_point()
+```
+  As you can see, there is not a visible correlation. This may be because we are only looking at the top 100 players. Based on my experience with the game this plot appears random because the different playstyles present in the top ranks.
+
+## Pipeline
+
+  To start looking at this dataset, I will generate some new columns using data in the playtime-based metrics. Specifically, I will find the average_map_length by dividing total hours by play_count, and I will find an average circle rate by dividing total hits by hours. Finally, I generate average_hits_per_map by dividing total_hits by playcount. There three new columns will represent information about the types of maps a player tends to play.
+The previous plot shuggests a log transformation, which makes sense for an accuracy measure, which maxes out at 100%. A log of this metric may better represent a player's distance from 100% accuracy
+```{r pipeline, include=TRUE}
+dat <- mutate(dat, average_map_length = hours/play_count) %>%
+  mutate(average_hit_rate = total_hits/hours) %>%
+  mutate(average_map_hits = total_hits/play_count) %>%
+  mutate(log_acc = log(100 - accuracy))
+ggplot(dat, aes(x=rank, y=log_acc)) + geom_point()
+```
+  log(100-accuracy) gives us a better spread, but plotting this against player rank is still useless. We will try plotting against some of the newly generated columns.
+```{r plot_maplength, include=TRUE}
+ggplot(dat, aes(x=average_map_length, y=log_acc)) + geom_point()
+```
+  This plot is interesting. Visibly, more player average shorter maps. While the most accurate player here plays shorter maps, the couple of long map players have above average accuracy. This follows the intuition that the consistency needed to get through longer maps allows these players to achieve a higher overall accuracy. Remember that log_acc = log(100 - accuracy), so points at 0 mean 99% accuracy. 
+
+##Visualization
+
+  For a couple more plots, we will visualize the relation between total playtime stats and rank. Use geom_smooth() to add a regression line. As you can see, adding a linear regression line shows that playing longer maps predicts achieving a higher rank.
+```{r colorplot, include=TRUE}
+ggplot(dat, aes(x=rank, y=average_map_length)) + geom_point() + geom_smooth(method="lm")
+```
+
+##Machine learning
+
+  Can we create a model to predict some player attribute given some other attributes? Let's treat the player level as a categorical variable and see if it can be predicted using the playtime attributes of play_count or hours. Intuitively, this prediction should be possible because we know that players earn progress towards the next level by playing, so a higher playcount should predict a higher level. Specifically, we will try to predict level using hours and ranked score.
+
+
+#knn model training on 90% of the set to predict the last 10%
+```{r knn_level, include=TRUE}
+#randomly sample 90% of rows
+rand <- sample(1:nrow(dat), 0.9*nrow(dat))
+#create a norm function
+norm <- function(x) {(x-min(x))/(max(x)-min(x))}
+norm_dat <- as.data.frame(lapply(dat[, c(8, 10)], norm))
+#extract training set and testing set from normalized data
+dat_train = norm_dat[rand,]
+dat_test = norm_dat[-rand,]
+#get prediction target (level column) and test target
+target_dat <- as.factor(dat[rand,7])
+target_test <- as.factor(dat[-rand,7])
+#run knn function
+predict <- knn(dat_train, dat_test, cl=target_dat, k=10)
+#confusion matrix
+tbl <- table(predict, target_test)
+#accuracy function
+accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+#call model accuracy function
+accuracy(tbl)
+```
+##Conclusion
+
+  The above model gives a different accuracy each time it is run. This means that different subsets of the data are more useful in predicting new data, and the accuracy of the model depends mostly on whether the predicted players include any outliers. We adjust for this by sampling half of the dataset instaed of 90% for training. This way our model is checked against 50 entries instead of just 10 and outliers have less of a negative impact on accuracy
+
+here is the improved model
+knn model training on 50% of the set to predict the other 50%
+```{r knn_level_50, include=TRUE}
+#randomly sample 90% of rows
+rand <- sample(1:nrow(dat), 0.5*nrow(dat))
+#create a norm function
+norm <- function(x) {(x-min(x))/(max(x)-min(x))}
+norm_dat <- as.data.frame(lapply(dat[, c(8, 10)], norm))
+#extract training set and testing set from normalized data
+dat_train = norm_dat[rand,]
+dat_test = norm_dat[-rand,]
+#get prediction target (level column) and test target
+target_dat <- as.factor(dat[rand,7])
+target_test <- as.factor(dat[-rand,7])
+#run knn function
+predict <- knn(dat_train, dat_test, cl=target_dat, k=10)
+#confusion matrix
+tbl <- table(predict, target_test)
+#accuracy function
+accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+#call model accuracy function
+accuracy(tbl)
+```
+
+  While this 50% model also varies with each run, the accuracy hovers within 15-20% of 50%. Since the factorized player level has 4 possible values in this set, a truly random predictor would be expected to have an accuracy of 25%. This model consistently outperforms 25%.
+
+##Conclusion:
+
+  The data science pipeline can be described as trying more and more complex models to find the simplest functional approach to a task. In this case, we sought to find patterns in the Osu! rankings dataset. First, we did some simple plots of various attributes against rank to see if any of these attributes were strictly correlated with rank in a predictable manner. Once this wasn't the case, we created some new columns as functions of existing columns and plotted those. We were then able to see a relation between rank and the ration of playtime to map count.
+  For out predictive model, we turned to the player level for guidance. This attribute only had 4 values across the dataset, so it was a good choice for converting to a factor for prediction. It also was intuitively a function of some of the other variables. As a player plays the game, their playtime and map count go up, as does their level. In other words, play_count, hours, and level are all attributes that strictly increase over time, and it is generally impossible for a player to increase one without also increasing the other. The exception is that a player could repeatedly play maps without completing them, driving up hours played without couting those maps towards play_count or getting experience towards the next level. We simply assumed that a top player isn't failing every single map they play, which is reasonable since passing maps is required for progressing through the ranks.
+  We followed a basic procedure to sample 90% of the dataset and try to predict the alst 10%. This seemed to work, but each rerun of the code gave a vastly different result because only 10 value were being predicted. The accuracy of the model therefore depended most on whether those 10 values were outliers. By changint eh sampling to 50%, the effect of outliers was dampened and the model improved to around 50% accuracy. In the end, we confirmed our intuitive understanding of the player level and how it correlated with other strictly increasing aspects of the Osu! rankings.
